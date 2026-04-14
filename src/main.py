@@ -2,8 +2,9 @@ import numpy as np
 import os
 import soundfile as sf
 from lms import apply_lms
+from FxLMS import apply_fxlms
 
-def run_synthetic_mode():
+def run_synthetic_mode(algorithm):
     print("\nGenerating Synthetic Data")
     fs = 16000      #set sampling rate of sine wave to 16kHz (nyquist theorem and ease of computation)
     duration = 5.0  #to create 2s sine wave clip
@@ -23,20 +24,39 @@ def run_synthetic_mode():
     primary_mic = primary_mic / np.max(np.abs(primary_mic)) #make max point = 1 0 < mu < 2/(L*P_x) stability condition
     ref_noise = ref_noise / np.max(np.abs(ref_noise)) #as numbers can be huge and multiplication will lead to higher numbers
 
-    print("Running LMS Algorithm...")
-    # 2. Run the math engine from lms.py
-    recovered_audio = apply_lms(
-        primary_signal=primary_mic, 
-        reference_noise=ref_noise, 
-        mu=0.01, 
-        filter_order=32, 
-        fs=fs, 
-        show_plot=True,
-        ideal_signal=clean_voice_ideal
-    )
+    print(f"Running {algorithm.upper()} Algorithm...")
+
+    # 2. Run the math engine
+    if algorithm == "lms":
+        recovered_audio = apply_lms(
+            primary_signal=primary_mic, 
+            reference_noise=ref_noise, 
+            mu=0.01, 
+            filter_order=32, 
+            fs=fs, 
+            show_plot=True,
+            ideal_signal=clean_voice_ideal
+        )
+        folder_name = "LMS_Synthetic_Audio"
+
+    elif algorithm == "fxlms":
+        recovered_audio = apply_fxlms(
+            primary_signal=primary_mic, 
+            reference_noise=ref_noise, 
+            mu=0.01, 
+            filter_order=128, 
+            fs=fs, 
+            show_plot=True,
+            ideal_signal=clean_voice_ideal
+        )
+        folder_name = "FxLMS_Synthetic_Audio"
+
+    else:
+        print("Invalid algorithm.")
+        return
     
     # 3. Create folder and save results
-    folder_name = "LMS_Synthetic_Audio"
+    folder_name = folder_name
     os.makedirs(folder_name, exist_ok=True)
     
     print(f"Saving synthetic audio files to '{folder_name}'...")
@@ -47,11 +67,21 @@ def run_synthetic_mode():
     
     print("Synthetic test complete.")
 
-def run_real_audio_mode():
+
+def run_real_audio_mode(algorithm):
     print("\n--- Loading Real Audio Files ---")
-    primary_file = "LMS_Real_Audio/audio.wav" 
-    noise_file = "LMS_Real_Audio/noise.wav"
-    output_file = "LMS_Real_Audio/LMSop.wav"
+    
+    if algorithm == "lms":
+        primary_file = "LMS_Real_Audio/audio.wav" 
+        noise_file = "LMS_Real_Audio/noise.wav"
+        output_file = "LMS_Real_Audio/LMSop.wav"
+    elif algorithm == "fxlms":
+        primary_file = "FxLMS_Real_Audio/audio.wav" 
+        noise_file = "FxLMS_Real_Audio/noise.wav"
+        output_file = "FxLMS_Real_Audio/FxLMSop.wav"
+    else:
+        print("Invalid algorithm.")
+        return
 
     if not os.path.exists(primary_file) or not os.path.exists(noise_file):
         print(f"ERROR: Could not find '{primary_file}' or '{noise_file}'.")
@@ -74,17 +104,31 @@ def run_real_audio_mode():
     primary_mic = primary_mic / np.max(np.abs(primary_mic))
     ref_noise = ref_noise / np.max(np.abs(ref_noise))
 
-    print("Running LMS Algorithm...")
+    print(f"Running {algorithm.upper()} Algorithm...")
+
     # Real audio is complex: use lower mu and higher filter_order
-    recovered_audio = apply_lms(
-        primary_signal=primary_mic, 
-        reference_noise=ref_noise, 
-        mu=0.009,           
-        filter_order=2048,   # High order for fan noise complexity
-        fs=fs_primary, 
-        show_plot=True,
+    if algorithm == "lms":
+        recovered_audio = apply_lms(
+            primary_signal=primary_mic, 
+            reference_noise=ref_noise, 
+            mu=0.009,           
+            filter_order=2048,   # High order for fan noise complexity
+            fs=fs_primary, 
+            show_plot=True,
+        )
         
-    )
+    elif algorithm == "fxlms":
+        recovered_audio = apply_fxlms(
+            primary_signal=primary_mic, 
+            reference_noise=ref_noise, 
+            mu=0.005,           
+            filter_order=1024,   
+            fs=fs_primary, 
+            show_plot=True,
+        )
+    else:
+        print("Invalid algorithm.")
+        return
     
     # Safety check for NaNs (if mu was still too high) #not a number, represents missing, undefined, or unrepresentable numerical data. 
     if np.isnan(recovered_audio).any():
@@ -103,11 +147,25 @@ if __name__ == "__main__":
     print("1. Synthetic Mode (Generates & Saves Sine Waves)")
     print("2. Real Audio Mode (Processes .wav Files)")
     
+    print("\nSelect Algorithm:")
+    print("1. LMS")
+    print("2. FxLMS")
+    
+    algo_choice = input("\nEnter 1 or 2 to select algorithm: ")
+    
+    if algo_choice == '1':
+        algorithm = "lms"
+    elif algo_choice == '2':
+        algorithm = "fxlms"
+    else:
+        print("Invalid choice.")
+        exit()
+    
     choice = input("\nEnter 1 or 2 to select mode: ")
     
     if choice == '1':
-        run_synthetic_mode()
+        run_synthetic_mode(algorithm)
     elif choice == '2':
-        run_real_audio_mode()
+        run_real_audio_mode(algorithm)
     else:
         print("Invalid choice.")
